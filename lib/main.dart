@@ -2,6 +2,7 @@
 import 'package:flutter/material.dart';
 import 'add_transaction.dart';
 import 'edit_transaction.dart';
+import 'database_helper.dart';
 
 void main() {
   runApp(const ExpenseManagerApp());
@@ -32,6 +33,7 @@ class ExpenseManagerApp extends StatelessWidget {
 enum TransactionType { expense, income }
 
 class TransactionData {
+  final int? id;
   final TransactionType type;
   final String category;
   final double amount;
@@ -39,6 +41,7 @@ class TransactionData {
   final String note;
 
   const TransactionData({
+    this.id,
     required this.type,
     required this.category,
     required this.amount,
@@ -149,58 +152,47 @@ class HomePage extends StatefulWidget {
 
 class _HomePageState extends State<HomePage> {
   int selectedTab = 0;
+  @override
+  void initState() {
+    super.initState();
+    _loadTransactions();
+  }
 
-  final List<TransactionData> transactions = [
-    TransactionData(
-      type: TransactionType.expense,
-      category: 'Ăn uống',
-      amount: 50000,
-      date: DateTime(2024, 9, 3),
-      note: 'Ăn trưa',
-    ),
-    TransactionData(
-      type: TransactionType.expense,
-      category: 'Di chuyển',
-      amount: 100000,
-      date: DateTime(2024, 9, 3),
-      note: 'Xăng xe',
-    ),
-    TransactionData(
-      type: TransactionType.income,
-      category: 'Thu nhập',
-      amount: 8000000,
-      date: DateTime(2024, 9, 1),
-      note: 'Lương tháng 9',
-    ),
-    TransactionData(
-      type: TransactionType.expense,
-      category: 'Mua sắm',
-      amount: 300000,
-      date: DateTime(2024, 8, 31),
-      note: 'Mua sắm',
-    ),
-    TransactionData(
-      type: TransactionType.expense,
-      category: 'Giáo dục',
-      amount: 500000,
-      date: DateTime(2024, 8, 30),
-      note: 'Học phí',
-    ),
+  Future<void> _loadTransactions() async {
+    final rows =
+    await DatabaseHelper.instance.getTransactions();
+
+    final loadedTransactions = rows.map((row) {
+      return TransactionData(
+        id: row['id'] as int,
+        type: row['type'] == 'income'
+            ? TransactionType.income
+            : TransactionType.expense,
+        category: row['category'] as String,
+        amount: (row['amount'] as num).toDouble(),
+        date: DateTime.parse(row['date'] as String),
+        note: (row['note'] ?? '').toString(),
+      );
+    }).toList();
+
+    if (!mounted) return;
+
+    setState(() {
+      transactions = loadedTransactions;
+    });
+}
+  List<TransactionData> transactions = [
   ];
 
   double get income => transactions
       .where((e) => e.type == TransactionType.income)
-      .fold(0, (sum, e) => sum + e.amount);
+      .fold(0.0, (sum, e) => sum + e.amount);
 
   double get expense => transactions
       .where((e) => e.type == TransactionType.expense)
-      .fold(0, (sum, e) => sum + e.amount);
+      .fold(0.0, (sum, e) => sum + e.amount);
 
-  // Giữ đúng số dư mẫu 5.000.000 đ của UI.
-  // Khi thêm/sửa giao dịch, số dư sẽ thay đổi theo phần chênh lệch
-  // so với bộ dữ liệu mẫu ban đầu.
-  double get balance =>
-      5000000 + (income - 8000000) - (expense - 3000000);
+  double get balance => income - expense;
 
   Future<void> addTransaction() async {
     final result = await Navigator.push<TransactionData>(
@@ -212,26 +204,53 @@ class _HomePageState extends State<HomePage> {
 
     if (!mounted || result == null) return;
 
-    setState(() {
-      transactions.insert(0, result);
+    await DatabaseHelper.instance.insertTransaction({
+      'type': result.type == TransactionType.income
+          ? 'income'
+          : 'expense',
+      'category': result.category,
+      'amount': result.amount,
+      'date': result.date,
+      'note': result.note,
     });
+
+    await _loadTransactions();
   }
 
   Future<void> editTransaction(int index) async {
+    final original = transactions[index];
+
     final result = await Navigator.push<TransactionData>(
       context,
       MaterialPageRoute(
         builder: (_) => EditTransactionPage(
-          transaction: transactions[index],
+          transaction: original,
         ),
       ),
     );
 
     if (!mounted || result == null) return;
 
-    setState(() {
-      transactions[index] = result;
-    });
+    if (original.id == null) {
+      throw StateError(
+        'Giao dịch chưa có ID trong database.',
+      );
+    }
+
+    await DatabaseHelper.instance.updateTransaction(
+      original.id!,
+      {
+        'type': result.type == TransactionType.income
+            ? 'income'
+            : 'expense',
+        'category': result.category,
+        'amount': result.amount,
+        'date': result.date,
+        'note': result.note,
+      },
+    );
+
+    await _loadTransactions();
   }
 
   String money(double value) {

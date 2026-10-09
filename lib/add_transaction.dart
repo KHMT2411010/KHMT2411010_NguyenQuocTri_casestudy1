@@ -1,6 +1,7 @@
 
 import 'package:flutter/material.dart';
 import 'main.dart';
+import 'database_helper.dart';
 
 class AddTransactionPage extends StatefulWidget {
   const AddTransactionPage({super.key});
@@ -59,13 +60,21 @@ class _AddTransactionPageState extends State<AddTransactionPage> {
     }
   }
 
-  void save() {
-    final amount =
-        double.tryParse(amountController.text.replaceAll('.', '').replaceAll(',', '')) ?? 0;
+
+  Future<void> save() async {
+    final amount = double.tryParse(
+      amountController.text
+          .replaceAll('.', '')
+          .replaceAll(',', '')
+          .trim(),
+    ) ??
+        0;
 
     if (amount <= 0) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Vui lòng nhập số tiền hợp lệ')),
+        const SnackBar(
+          content: Text('Vui lòng nhập số tiền hợp lệ'),
+        ),
       );
       return;
     }
@@ -73,7 +82,9 @@ class _AddTransactionPageState extends State<AddTransactionPage> {
     Navigator.pop(
       context,
       TransactionData(
-        type: isExpense ? TransactionType.expense : TransactionType.income,
+        type: isExpense
+            ? TransactionType.expense
+            : TransactionType.income,
         category: selectedCategory,
         amount: amount,
         date: selectedDate,

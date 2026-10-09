@@ -82,12 +82,18 @@ class _EditTransactionPageState extends State<EditTransactionPage> {
   }
 
   void save() {
-    final amount =
-        double.tryParse(amountController.text.replaceAll('.', '').replaceAll(',', '')) ?? 0;
+    final amount = double.tryParse(
+      amountController.text
+          .replaceAll('.', '')
+          .replaceAll(',', ''),
+    ) ??
+        0;
 
     if (amount <= 0) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Vui lòng nhập số tiền hợp lệ')),
+        const SnackBar(
+          content: Text('Vui lòng nhập số tiền hợp lệ'),
+        ),
       );
       return;
     }
@@ -95,7 +101,10 @@ class _EditTransactionPageState extends State<EditTransactionPage> {
     Navigator.pop(
       context,
       TransactionData(
-        type: isExpense ? TransactionType.expense : TransactionType.income,
+        id: widget.transaction.id,
+        type: isExpense
+            ? TransactionType.expense
+            : TransactionType.income,
         category: selectedCategory,
         amount: amount,
         date: selectedDate,
