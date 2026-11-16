@@ -1,4 +1,3 @@
-
 import 'package:path/path.dart';
 import 'package:sqflite/sqflite.dart';
 
@@ -11,7 +10,7 @@ class DatabaseHelper {
   static Database? _database;
 
   Future<Database> get database async {
-    if (_database != null) {
+    if (_database != null && _database!.isOpen) {
       return _database!;
     }
 
@@ -25,7 +24,7 @@ class DatabaseHelper {
 
     return openDatabase(
       path,
-      version: 1,
+      version: 2,
       onConfigure: (db) async {
         await db.execute('PRAGMA foreign_keys = ON');
       },
@@ -66,8 +65,41 @@ class DatabaseHelper {
         ''');
 
         await _seedDefaultCategories(db);
+        await _createSettings(db);
+      },
+      onUpgrade: (db, oldVersion, newVersion) async {
+        if (oldVersion < 2) {
+          await _createSettings(db);
+          await _seedAdditionalCategories(db);
+        }
       },
     );
+  }
+
+  Future<void> _createSettings(DatabaseExecutor db) async {
+    await db.execute('''
+      CREATE TABLE app_settings (
+        key TEXT PRIMARY KEY,
+        value TEXT NOT NULL
+      )
+    ''');
+  }
+
+  static const _additionalCategories = [
+    {'name': 'Kinh doanh', 'type': 'income'},
+    {'name': 'Đi lại', 'type': 'expense'},
+    {'name': 'Khác', 'type': 'income'},
+    {'name': 'Khác', 'type': 'expense'},
+  ];
+
+  Future<void> _seedAdditionalCategories(DatabaseExecutor db) async {
+    for (final category in _additionalCategories) {
+      await db.insert(
+        'categories',
+        category,
+        conflictAlgorithm: ConflictAlgorithm.ignore,
+      );
+    }
   }
 
   // ==============================
@@ -88,6 +120,8 @@ class DatabaseHelper {
       {'name': 'Học tập', 'type': 'expense'},
       {'name': 'Chi phí khác', 'type': 'expense'},
     ];
+
+    await _seedAdditionalCategories(db);
 
     for (final category in categories) {
       await db.insert(
@@ -183,7 +217,7 @@ class DatabaseHelper {
     final category = transaction['category'] as String;
     final note = (transaction['note'] ?? '').toString();
 
-    if (amount <= 0) {
+    if (!amount.isFinite || amount <= 0) {
       throw ArgumentError('Số tiền phải lớn hơn 0.');
     }
 
@@ -310,7 +344,7 @@ class DatabaseHelper {
     final category = transaction['category'] as String;
     final note = (transaction['note'] ?? '').toString();
 
-    if (amount <= 0) {
+    if (!amount.isFinite || amount <= 0) {
       throw ArgumentError('Số tiền phải lớn hơn 0.');
     }
 
